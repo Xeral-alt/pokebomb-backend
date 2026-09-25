@@ -636,7 +636,8 @@ function submitPokemon(room: Room, socket: Socket, rawPokemon: string) {
       success: false,
       playerId: socket.id,
       reason: "already-used",
-      pokemon: attemptedPokemon,
+      pokemon: pokemonApiNames.get(pokemon) ?? pokemon,
+      spriteUrl: getPokemonSpriteUrl(pokemon),
     });
 
     return;
@@ -647,7 +648,8 @@ function submitPokemon(room: Room, socket: Socket, rawPokemon: string) {
       success: false,
       playerId: socket.id,
       reason: "wrong-syllable",
-      pokemon: attemptedPokemon,
+      pokemon: pokemonApiNames.get(pokemon) ?? pokemon,
+      spriteUrl: getPokemonSpriteUrl(pokemon),
     });
 
     return;
