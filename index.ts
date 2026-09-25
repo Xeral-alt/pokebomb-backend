@@ -42,6 +42,7 @@ type User = {
   username: string;
   role: Role;
   lives: number;
+  gamesWon: number;
 };
 
 type Settings = {
@@ -617,6 +618,8 @@ function submitPokemon(room: Room, socket: Socket, rawPokemon: string) {
 
   const pokemon = normalizePokemonName(attemptedPokemon);
 
+  const player = room.users.get(socket.id);
+
   if (!pokemonNames.has(pokemon)) {
     emitSubmissionResult(room, {
       success: false,
@@ -652,8 +655,6 @@ function submitPokemon(room: Room, socket: Socket, rawPokemon: string) {
 
   room.usedPokemon.add(pokemon);
 
-  const player = room.users.get(socket.id);
-
   if (
     player &&
     room.settings.healOnCorrect &&
@@ -676,6 +677,12 @@ function finishGame(room: Room, winnerId: string | null) {
   clearTurnTimer(room);
   clearCountdownTimer(room);
 
+  const winner = winnerId ? (room.users.get(winnerId) ?? null) : null;
+
+  if (winner) {
+    winner.gamesWon += 1;
+  }
+
   /*
    * Enviamos primero el ganador
    * mientras todavía existe el
@@ -683,7 +690,7 @@ function finishGame(room: Room, winnerId: string | null) {
    */
   io.to(room.id).emit("game-ended", {
     winnerId,
-    winnerUsername: winnerId ? (room.users.get(winnerId)?.username ?? null) : null,
+    winnerUsername: winner?.username ?? null,
   });
 
   /*
@@ -826,6 +833,7 @@ io.on("connection", (socket) => {
         username: cleanUsername,
         role: "spectator",
         lives: room.settings.initialLives,
+        gamesWon: 0,
       });
 
       socket.data.roomId = cleanRoomId;
