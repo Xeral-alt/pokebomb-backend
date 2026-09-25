@@ -93,6 +93,8 @@ type JoinResponse = {
   message?: string;
 };
 
+type SubmissionReason = "not-pokemon" | "already-used" | "wrong-syllable";
+
 /* -------------------------------------------------------------------------- */
 /*                               GLOBAL STATE                                 */
 /* -------------------------------------------------------------------------- */
@@ -552,6 +554,18 @@ function nextTurn(room: Room) {
   startTurn(room);
 }
 
+function emitSubmissionResult(
+  room: Room,
+  value: {
+    success: boolean;
+    playerId: string;
+    pokemon: string;
+    reason?: SubmissionReason;
+  },
+) {
+  io.to(room.id).emit("submission-result", value);
+}
+
 function submitPokemon(room: Room, socket: Socket, rawPokemon: string) {
   if (room.status !== "playing") {
     return;
@@ -563,33 +577,38 @@ function submitPokemon(room: Room, socket: Socket, rawPokemon: string) {
     return;
   }
 
-  const pokemon = normalizePokemonName(rawPokemon);
+  const attemptedPokemon = rawPokemon.trim().replace(/\s+/g, " ");
+
+  const pokemon = normalizePokemonName(attemptedPokemon);
 
   if (!pokemonNames.has(pokemon)) {
-    socket.emit("submission-result", {
+    emitSubmissionResult(room, {
       success: false,
+      playerId: socket.id,
       reason: "not-pokemon",
-      pokemon,
+      pokemon: attemptedPokemon,
     });
 
     return;
   }
 
   if (room.usedPokemon.has(pokemon)) {
-    socket.emit("submission-result", {
+    emitSubmissionResult(room, {
       success: false,
+      playerId: socket.id,
       reason: "already-used",
-      pokemon,
+      pokemon: attemptedPokemon,
     });
 
     return;
   }
 
   if (!room.syllable || !pokemon.includes(room.syllable)) {
-    socket.emit("submission-result", {
+    emitSubmissionResult(room, {
       success: false,
+      playerId: socket.id,
       reason: "wrong-syllable",
-      pokemon,
+      pokemon: attemptedPokemon,
     });
 
     return;
@@ -607,7 +626,7 @@ function submitPokemon(room: Room, socket: Socket, rawPokemon: string) {
     player.lives += 1;
   }
 
-  io.to(room.id).emit("submission-result", {
+  emitSubmissionResult(room, {
     success: true,
     playerId: socket.id,
     pokemon,
@@ -627,6 +646,7 @@ function finishGame(room: Room, winnerId: string | null) {
    */
   io.to(room.id).emit("game-ended", {
     winnerId,
+    winnerUsername: winnerId ? (room.users.get(winnerId)?.username ?? null) : null,
   });
 
   /*
