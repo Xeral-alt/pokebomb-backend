@@ -103,6 +103,10 @@ const rooms = new Map<string, Room>();
 
 const pokemonNames = new Set<string>();
 
+const pokemonApiNames = new Map<string, string>();
+
+const pokemonSpriteIds = new Map<string, number>();
+
 /**
  * Fragmento de dos letras -> Pokémon que lo contienen.
  *
@@ -122,6 +126,26 @@ function normalizePokemonName(value: string) {
     .replace(/[\s_'".-]/g, "");
 }
 
+function getPokemonIdFromUrl(url: string) {
+  const match = url.match(/\/pokemon-species\/(\d+)\/?$/);
+
+  if (!match) {
+    return null;
+  }
+
+  return Number(match[1]);
+}
+
+function getPokemonSpriteUrl(pokemon: string) {
+  const id = pokemonSpriteIds.get(pokemon);
+
+  if (!id) {
+    return null;
+  }
+
+  return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`;
+}
+
 async function loadPokemon() {
   console.log("Cargando Pokémon desde PokéAPI...");
 
@@ -136,9 +160,20 @@ async function loadPokemon() {
   const data = (await response.json()) as PokemonSpeciesResponse;
 
   pokemonNames.clear();
+  pokemonApiNames.clear();
+  pokemonSpriteIds.clear();
 
   for (const result of data.results) {
-    pokemonNames.add(normalizePokemonName(result.name));
+    const normalizedName = normalizePokemonName(result.name);
+
+    pokemonNames.add(normalizedName);
+    pokemonApiNames.set(normalizedName, result.name);
+
+    const id = getPokemonIdFromUrl(result.url);
+
+    if (id) {
+      pokemonSpriteIds.set(normalizedName, id);
+    }
   }
 
   buildSyllableIndex();
@@ -560,6 +595,7 @@ function emitSubmissionResult(
     success: boolean;
     playerId: string;
     pokemon: string;
+    spriteUrl?: string | null;
     reason?: SubmissionReason;
   },
 ) {
@@ -629,7 +665,8 @@ function submitPokemon(room: Room, socket: Socket, rawPokemon: string) {
   emitSubmissionResult(room, {
     success: true,
     playerId: socket.id,
-    pokemon,
+    pokemon: pokemonApiNames.get(pokemon) ?? pokemon,
+    spriteUrl: getPokemonSpriteUrl(pokemon),
   });
 
   nextTurn(room);
